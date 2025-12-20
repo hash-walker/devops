@@ -75,6 +75,8 @@ jobs:
               # 6. Install Dependencies and Restart App
               npm install
               
+              npm run build-react
+              
               # Start/Restart PM2
               # We use '||' so if restart fails (first run), it falls back to start
               pm2 restart app || pm2 start index.js --name "app"
