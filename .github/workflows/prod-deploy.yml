@@ -50,6 +50,11 @@ jobs:
           username: ubuntu
           key: ${{ secrets.STAGGING_KEY }}
           script: |
+            
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            export PATH=$PATH:/home/ubuntu/.nvm/versions/node/v22.X.X/bin # Or generic path
+            
             cd ~
             
             # Standard "Fix Broken Folder" Logic
@@ -74,6 +79,8 @@ jobs:
             npm install
             # Note: If your t2.micro crashes during build, you might need to use swap memory
             npm run build-react
+            
+            npx pm2 restart ecosystem.config.js
             
             # Restart App
             pm2 restart app || pm2 start index.js --name "app"
