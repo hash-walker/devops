@@ -31,7 +31,7 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: Workflow Failed
           from: DevOps Bot <${{ secrets.MAIL_USERNAME }}>
-          to: developer@example.com,instructor@example.com
+          to: hamzafaraz1821@gmail.com
           body: The build or test failed!
 
   deploy-qa:
@@ -68,7 +68,7 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: Deployment to QA Successful
           from: DevOps Bot <${{ secrets.MAIL_USERNAME }}> # ADDED THIS
-          to: instructor@example.com
+          to: hamzafaraz1821@gmail.com
           body: |
             Deploy success! 
             
