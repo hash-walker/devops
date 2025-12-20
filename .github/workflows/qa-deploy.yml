@@ -1,0 +1,54 @@
+name: QA Deployment
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build
+      run: |
+        echo "Building project..."
+        # example:
+        # docker build -t myapp .
+
+    - name: Unit Tests
+      run: |
+        echo "Running unit tests..."
+        # example:
+        # pytest
+        # npm test
+        # go test ./...
+
+    - name: Code Linting
+      run: |
+        echo "Running lint..."
+        # example:
+        # flake8 .
+        # eslint .
+
+    - name: Deploy to QA EC2
+      uses: appleboy/ssh-action@v1
+      with:
+        host: ${{ secrets.TEST_EC2_HOST }}
+        username: ${{ secrets.TEST_EC2_USER }}
+        key: ${{ secrets.TEST_EC2_KEY }}
+        script: |
+          cd /home/ubuntu
+          if [ ! -d "app" ]; then
+            git clone https://github.com/hash-walker/devops.git app
+          fi
+          cd app
+          git fetch origin
+          git checkout ${{ github.head_ref }}
+          git pull origin ${{ github.head_ref }}
+
+          docker compose down || true
+          docker compose up -d --build
