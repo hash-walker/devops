@@ -1,54 +1,75 @@
-name: QA Deployment
-
-on:
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
-
 jobs:
   qa:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Build
-      run: |
-        echo "Building project..."
-        # example:
-        # docker build -t myapp .
+      - name: Build
+        run: |
+          echo "Building project..."
+          npm install
+          npm run build
 
-    - name: Unit Tests
-      run: |
-        echo "Running unit tests..."
-        # example:
-        # pytest
-        # npm test
-        # go test ./...
+      - name: Unit Tests
+        run: |
+          echo "Running unit tests..."
+          npm test
 
-    - name: Code Linting
-      run: |
-        echo "Running lint..."
-        # example:
-        # flake8 .
-        # eslint .
+      - name: Code Linting
+        run: |
+          echo "Running lint..."
+          npm run lint
 
-    - name: Deploy to QA EC2
-      uses: appleboy/ssh-action@v1
-      with:
-        host: ${{ secrets.TEST_EC2_HOST }}
-        username: ${{ secrets.TEST_EC2_USER }}
-        key: ${{ secrets.TEST_EC2_KEY }}
-        script: |
-          cd /home/ubuntu
-          if [ ! -d "app" ]; then
-            git clone https://github.com/hash-walker/devops.git app
-          fi
-          cd app
-          git fetch origin
-          git checkout ${{ github.head_ref }}
-          git pull origin ${{ github.head_ref }}
+      - name: Deploy to QA EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.TEST_EC2_HOST }}
+          username: ${{ secrets.TEST_EC2_USER }}
+          key: ${{ secrets.TEST_EC2_KEY }}
+          port: 22
+          script: |
+            cd /home/ubuntu
+            if [ ! -d "app" ]; then
+              git clone https://github.com/hash-walker/devops.git app
+            fi
+            cd app
+            git fetch origin
+            git checkout ${{ github.head_ref }}
+            git pull origin ${{ github.head_ref }}
+            docker compose down || true
+            docker compose up -d --build
+            echo "Deployment to QA completed!"
 
-          docker compose down || true
-          docker compose up -d --build
+      # Notification on Success
+      - name: Send Success Email
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: "QA Deployment Success: ${{ github.head_ref }}"
+          body: |
+            The branch ${{ github.head_ref }} has been successfully deployed to QA.
+            Access the app here: http://<QA_EC2_IP>
+          to: ${{ secrets.QA_EMAIL }}
+          from: ${{ secrets.SMTP_USER }}
+
+      # Notification on Failure
+      - name: Send Failure Email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: "QA Deployment Failed: ${{ github.head_ref }}"
+          body: |
+            The deployment of branch ${{ github.head_ref }} to QA failed.
+            Please check the GitHub Actions logs for details.
+          to: ${{ secrets.DEV_EMAIL }},${{ secrets.QA_EMAIL }}
+          from: ${{ secrets.SMTP_USER }}
