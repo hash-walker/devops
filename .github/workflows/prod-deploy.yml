@@ -35,7 +35,7 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: Staging Build Failed!
           from: DevOps Bot <${{ secrets.MAIL_USERNAME }}>
-          to: developer@example.com,instructor@example.com
+          to: hamzafaraz1821@gmail.com
           body: The build, test, or linting failed on the Main branch. Please investigate immediately.
 
   deploy-staging:
@@ -46,7 +46,7 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           # NOTICE: Using STAGING_HOST here
-          host: ${{ secrets.STAGING_HOST }}
+          host: ${{ secrets.STAGGING_HOST }}
           username: ubuntu
           key: ${{ secrets.PROD_EC2_KEY }}
           script: |
@@ -90,7 +90,7 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: Staging Deployment Successful
           from: DevOps Bot <${{ secrets.MAIL_USERNAME }}>
-          to: instructor@example.com
+          to: hamzafaraz1821@gmail.com
           body: |
             The changes have been merged and deployed to Staging!
             
