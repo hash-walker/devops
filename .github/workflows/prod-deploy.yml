@@ -1,34 +1,98 @@
-name: Production Deployment
+name: Deploy to Staging
 
+# Trigger on push to main (Merge event) OR Manual button
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  production:
+  build-and-test:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Build
-      run: echo "Build successful"
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22.x'
 
-    - name: Unit Tests
-      run: echo "Tests passed"
+      - run: npm ci
+      # Build the React app (Important for Staging/Prod)
+      - run: npm run build-react --if-present
+      - run: npm test
+      - run: npm run lint
 
-    - name: Lint
-      run: echo "Lint passed"
+      # Email on Failure
+      - name: Send mail on failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: Staging Build Failed!
+          from: DevOps Bot <${{ secrets.MAIL_USERNAME }}>
+          to: developer@example.com,instructor@example.com
+          body: The build, test, or linting failed on the Main branch. Please investigate immediately.
 
-    - name: Deploy to Production EC2
-      uses: appleboy/ssh-action@v1
-      with:
-        host: ${{ secrets.PROD_EC2_HOST }}
-        username: ${{ secrets.PROD_EC2_USER }}
-        key: ${{ secrets.PROD_EC2_KEY }}
-        script: |
-          cd /home/deploy/app
-          git pull origin main
-          docker compose down || true
-          docker compose up -d --build
+  deploy-staging:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to AWS Staging Server
+        uses: appleboy/ssh-action@master
+        with:
+          # NOTICE: Using STAGING_HOST here
+          host: ${{ secrets.STAGING_HOST }}
+          username: ubuntu
+          key: ${{ secrets.PROD_EC2_KEY }}
+          script: |
+            cd ~
+            
+            # Standard "Fix Broken Folder" Logic
+            if [ -d "app" ] && [ ! -d "app/.git" ]; then
+              rm -rf app
+            fi
+            
+            # Clone if missing
+            if [ ! -d "app" ]; then
+              git clone https://github.com/YOUR_GITHUB_USER/YOUR_REPO.git app
+            fi
+            
+            cd app
+            
+            # ALWAYS deploy the main branch for Staging
+            git fetch origin main
+            git reset --hard origin/main
+            git checkout main
+            git pull origin main
+            
+            # Install and Build on Server
+            npm install
+            # Note: If your t2.micro crashes during build, you might need to use swap memory
+            npm run build-react
+            
+            # Restart App
+            pm2 restart app || pm2 start index.js --name "app"
+
+      # Email on Success
+      - name: Send mail on success
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: Staging Deployment Successful
+          from: DevOps Bot <${{ secrets.MAIL_USERNAME }}>
+          to: instructor@example.com
+          body: |
+            The changes have been merged and deployed to Staging!
+            
+            Access the Staging Environment here:
+            http://${{ secrets.STAGING_HOST }}:3000
