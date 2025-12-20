@@ -50,17 +50,8 @@ jobs:
             # Build React app
             npm run build-react
             
-            # Install pm2 globally if not installed
-            if ! command -v pm2 &> /dev/null
-            then
-              npm install -g pm2
-            fi
-            
-            # Stop previous app if running
-            pm2 stop app || true
-            
-            # Start the app using pm2
-            pm2 start npm --name "app" -- start
-            
-            # Save pm2 process list so it restarts on reboot
-            pm2 save
+            sudo npm install -g pm2
+            sudo pm2 stop app || true
+            sudo pm2 start npm --name "app" -- start
+            sudo pm2 save
+
