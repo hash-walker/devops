@@ -45,44 +45,41 @@ jobs:
       - name: Deploy to AWS Staging Server
         uses: appleboy/ssh-action@master
         with:
-          # NOTICE: Using STAGING_HOST here
+
           host: ${{ secrets.STAGGING_HOST }}
           username: ubuntu
           key: ${{ secrets.STAGGING_KEY }}
           script: |
-            
+            # 1. Load NVM (This automatically sets up the PATH for node/npm/pm2)
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            export PATH=$PATH:/home/ubuntu/.nvm/versions/node/v22.X.X/bin # Or generic path
             
             cd ~
             
-            # Standard "Fix Broken Folder" Logic
+            # 2. Cleanup Logic
             if [ -d "app" ] && [ ! -d "app/.git" ]; then
               rm -rf app
             fi
             
-            # Clone if missing
             if [ ! -d "app" ]; then
-              git clone https://${{ secrets.GH_PAT }}@github.com/hamzafaraz/YOUR_REPO.git app
+              git clone https://${{ secrets.GH_PAT }}@github.com/hash-walker/devops.git app
             fi
             
             cd app
             
-            # ALWAYS deploy the main branch for Staging
-            git fetch origin main
-            git reset --hard origin/main
-            git checkout main
-            git pull origin main
+            # 5. Fetch and Checkout the correct branch
+            git reset --hard
+            git fetch origin $BRANCH
+            git checkout $BRANCH
+            git pull origin $BRANCH
             
-            # Install and Build on Server
+            # 6. Install Dependencies and Restart App
             npm install
-            # Note: If your t2.micro crashes during build, you might need to use swap memory
+            
             npm run build-react
             
-            npx pm2 restart ecosystem.config.js
-            
-            # Restart App
+            # Start/Restart PM2
+            # We use '||' so if restart fails (first run), it falls back to start
             pm2 restart app || pm2 start index.js --name "app"
 
       # Email on Success
@@ -102,4 +99,4 @@ jobs:
             The changes have been merged and deployed to Staging!
             
             Access the Staging Environment here:
-            http://${{ secrets.STAGING_HOST }}:3000
+            http://${{ secrets.STAGGING_HOST }}:3000
