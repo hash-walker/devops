@@ -59,7 +59,7 @@ jobs:
             
             # Clone if missing
             if [ ! -d "app" ]; then
-              git clone https://github.com/hash-walker/devops.git app
+              git clone https://${{ secrets.GH_PAT }}@github.com/hamzafaraz/YOUR_REPO.git app
             fi
             
             cd app
