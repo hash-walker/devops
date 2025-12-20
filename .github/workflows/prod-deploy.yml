@@ -48,7 +48,7 @@ jobs:
           # NOTICE: Using STAGING_HOST here
           host: ${{ secrets.STAGGING_HOST }}
           username: ubuntu
-          key: ${{ secrets.PROD_EC2_KEY }}
+          key: ${{ secrets.STAGGING_KEY }}
           script: |
             cd ~
             
