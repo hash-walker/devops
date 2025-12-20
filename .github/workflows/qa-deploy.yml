@@ -45,7 +45,7 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/my-app
+            cd ~/app
             # Logic: If triggered by PR, use PR branch (head_ref). If manual, use main/current branch.
             BRANCH=${{ github.head_ref || github.ref_name }}
             
