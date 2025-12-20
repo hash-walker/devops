@@ -1,4 +1,4 @@
-name: QA Deployment
+name: Deploy to QA/Testing
 
 on:
   pull_request:
@@ -6,52 +6,70 @@ on:
   workflow_dispatch:
 
 jobs:
-  qa:
+  build-and-test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Unit Tests
-        run: |
-          echo "Running unit tests..."
-          # example:
-          # npm test
-          # pytest
-          # go test ./...
-
-      - name: Code Linting
-        run: |
-          echo "Running lint..."
-          # example:
-          # eslint .
-          # flake8 .
-
-      - name: Deploy to QA EC2
-        uses: appleboy/ssh-action@v1
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v3
         with:
-          host: ${{ secrets.TEST_EC2_HOST }}
-          username: ${{ secrets.TEST_EC2_USER }}
-          key: ${{ secrets.TEST_EC2_KEY }}
-          script: |
-            cd /home/ubuntu
-            if [ ! -d "app" ]; then
-              git clone https://github.com/hash-walker/devops.git app
-            fi
-            cd app
-            git fetch origin
-            git checkout ${{ github.head_ref }}
-            git pull origin ${{ github.head_ref }}
-            
-            # Install Node dependencies
-            npm install
-            
-            # Build React app
-            npm run build-react
-            
-            sudo npm install -g pm2
-            sudo pm2 stop app || true
-            sudo pm2 start npm --name "app" -- start -- --host 0.0.0.0
-            sudo pm2 save
+          node-version: '22.x'  # Updated to latest Node version
+      - run: npm ci
+      - run: npm run build --if-present
+      - run: npm test
+      - run: npm run lint
 
+      # Send Email on Failure
+      - name: Send mail on failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true              # Recommended for port 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: Workflow Failed
+          from: DevOps Bot <${{ secrets.MAIL_USERNAME }}>
+          to: developer@example.com,instructor@example.com
+          body: The build or test failed!
+
+  deploy-qa:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to AWS Testing Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.TESTING_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/my-app
+            # Logic: If triggered by PR, use PR branch (head_ref). If manual, use main/current branch.
+            BRANCH=${{ github.head_ref || github.ref_name }}
+            
+            git fetch origin $BRANCH
+            git checkout $BRANCH
+            git pull origin $BRANCH
+            
+            npm install
+            pm2 restart all || pm2 start index.js --name "app"
+
+      # Send Email on Success
+      - name: Send mail on success
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true              # Recommended for port 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: Deployment to QA Successful
+          from: DevOps Bot <${{ secrets.MAIL_USERNAME }}> # ADDED THIS
+          to: instructor@example.com
+          body: |
+            Deploy success! 
+            
+            Access here: http://${{ secrets.TESTING_HOST }}:3000
