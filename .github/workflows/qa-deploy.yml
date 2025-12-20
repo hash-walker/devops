@@ -1,4 +1,4 @@
-name: QA Deployment
+name: Deploy to QA/Testing
 
 on:
   pull_request:
@@ -6,49 +6,95 @@ on:
   workflow_dispatch:
 
 jobs:
-  qa:
+  build-and-test:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22.x'  # Updated to latest Node version
+      - run: npm ci
+      - run: npm run build --if-present
+      - run: npm test
+      - run: npm run lint
 
-    - name: Build
-      run: |
-        echo "Building project..."
-        # example:
-        # docker build -t myapp .
+      # Send Email on Failure
+      - name: Send mail on failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true              # Recommended for port 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: Workflow Failed
+          from: DevOps Bot <${{ secrets.MAIL_USERNAME }}>
+          to: hamzafaraz1821@gmail.com
+          body: The build or test failed!
 
-    - name: Unit Tests
-      run: |
-        echo "Running unit tests..."
-        # example:
-        # pytest
-        # npm test
-        # go test ./...
+  deploy-qa:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to AWS Testing Server
+        uses: appleboy/ssh-action@master
+        with:
+            host: ${{ secrets.TESTING_HOST }}
+            username: ubuntu
+            key: ${{ secrets.EC2_SSH_KEY }}
+            script: |
+              # 1. Go to home directory
+              cd ~
+              
+              if [ -d "app" ] && [ ! -d "app/.git" ]; then
+                echo "Folder 'app' exists but is not a git repo. Deleting..."
+                rm -rf app
+              fi
+              
+              # 2. Check if the folder 'app' exists
+              if [ ! -d "app" ]; then
+                echo "Folder not found. Cloning repository..."
+                git clone https://github.com/hash-walker/devops.git app
+              fi
+              
+              # 3. Enter the folder
+              cd app
+              
+              # 4. Determine which branch to use (PR branch or Main)
+              BRANCH=${{ github.head_ref || github.ref_name }}
+              echo "Deploying branch: $BRANCH"
+              
+              # 5. Fetch and Checkout the correct branch
+              git reset --hard
+              git fetch origin $BRANCH
+              git checkout $BRANCH
+              git pull origin $BRANCH
+              
+              # 6. Install Dependencies and Restart App
+              npm install
+              
+              npm run build-react
+              
+              # Start/Restart PM2
+              # We use '||' so if restart fails (first run), it falls back to start
+              pm2 restart app || pm2 start index.js --name "app"
 
-    - name: Code Linting
-      run: |
-        echo "Running lint..."
-        # example:
-        # flake8 .
-        # eslint .
-
-    - name: Deploy to QA EC2
-      uses: appleboy/ssh-action@v1
-      with:
-        host: ${{ secrets.TEST_EC2_HOST }}
-        username: ${{ secrets.TEST_EC2_USER }}
-        key: ${{ secrets.TEST_EC2_KEY }}
-        script: |
-          cd /home/ubuntu
-          if [ ! -d "app" ]; then
-            git clone https://github.com/hash-walker/devops.git app
-          fi
-          cd app
-          git fetch origin
-          git checkout ${{ github.head_ref }}
-          git pull origin ${{ github.head_ref }}
-
-          docker compose down || true
-          docker compose up -d --build
+      # Send Email on Success
+      - name: Send mail on success
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true              # Recommended for port 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: Deployment to QA Successful
+          from: DevOps Bot <${{ secrets.MAIL_USERNAME }}> # ADDED THIS
+          to: hamzafaraz1821@gmail.com
+          body: |
+            Deploy success! 
+            
+            Access here: http://${{ secrets.TESTING_HOST }}:3000
