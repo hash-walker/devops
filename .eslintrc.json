@@ -1,5 +1,5 @@
 {
-  "ignorePatterns": ["src/cartview.js"],
+  "ignorePatterns": ["src/cartview.js", "build/"],
   "env": {
     "browser": true,
     "es2021": true,
