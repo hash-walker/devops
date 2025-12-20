@@ -1,25 +1,66 @@
-- name: Deploy to QA EC2
-  uses: appleboy/ssh-action@v1
-  with:
-    host: ${{ secrets.TEST_EC2_HOST }}
-    username: ${{ secrets.TEST_EC2_USER }}
-    key: ${{ secrets.TEST_EC2_KEY }}
-    script: |
-      cd /home/ubuntu
-      if [ ! -d "app" ]; then
-        git clone https://github.com/hash-walker/devops.git app
-      fi
-      cd app
-      git fetch origin
-      git checkout ${{ github.head_ref }}
-      git pull origin ${{ github.head_ref }}
+name: QA Deployment
 
-      # Install dependencies
-      npm install
-      npm run build-react
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
 
-      # Start app using pm2 so it runs in the background
-      npm install -g pm2
-      pm2 stop app || true
-      pm2 start npm --name "app" -- start
-      pm2 save
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Unit Tests
+        run: |
+          echo "Running unit tests..."
+          # example:
+          # npm test
+          # pytest
+          # go test ./...
+
+      - name: Code Linting
+        run: |
+          echo "Running lint..."
+          # example:
+          # eslint .
+          # flake8 .
+
+      - name: Deploy to QA EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.TEST_EC2_HOST }}
+          username: ${{ secrets.TEST_EC2_USER }}
+          key: ${{ secrets.TEST_EC2_KEY }}
+          script: |
+            cd /home/ubuntu
+            if [ ! -d "app" ]; then
+              git clone https://github.com/hash-walker/devops.git app
+            fi
+            cd app
+            git fetch origin
+            git checkout ${{ github.head_ref }}
+            git pull origin ${{ github.head_ref }}
+            
+            # Install Node dependencies
+            npm install
+            
+            # Build React app
+            npm run build-react
+            
+            # Install pm2 globally if not installed
+            if ! command -v pm2 &> /dev/null
+            then
+              npm install -g pm2
+            fi
+            
+            # Stop previous app if running
+            pm2 stop app || true
+            
+            # Start the app using pm2
+            pm2 start npm --name "app" -- start
+            
+            # Save pm2 process list so it restarts on reboot
+            pm2 save
