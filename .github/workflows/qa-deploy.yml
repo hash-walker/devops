@@ -41,7 +41,7 @@ jobs:
         username: ${{ secrets.TEST_EC2_USER }}
         key: ${{ secrets.TEST_EC2_KEY }}
         script: |
-          cd /home/deploy
+          cd /home/ubuntu
           if [ ! -d "app" ]; then
             git clone https://github.com/hash-walker/devops.git app
           fi
