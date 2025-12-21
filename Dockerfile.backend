@@ -1,0 +1,28 @@
+# Backend Dockerfile - Runs the Express server
+FROM node:20
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy backend files
+COPY index.js ./
+COPY carts.js ./
+
+# Copy wait script and make it executable
+COPY wait-for-build.sh ./
+RUN chmod +x wait-for-build.sh
+
+# The build folder (from frontend) will be mounted as a volume
+# So we don't copy it here - it comes from the frontend container
+
+# Expose port 3000
+EXPOSE 3000
+
+# Wait for frontend build, then start the server
+CMD ["./wait-for-build.sh"]
+
