@@ -1,102 +1,58 @@
 name: Deploy to Staging
 
-# Trigger on push to main (Merge event) OR Manual button
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Use Node.js
-        uses: actions/setup-node@v3
+      
+      - uses: actions/setup-node@v3
+        with: { 
+          node-version: '22.x' 
+        }
+        
+      - run: |
+          npm ci
+          npm test
+          npm run build-react --if-present
+          mkdir deploy_package
+          cp -r build deploy_package/
+          cp index.js carts.js package.json package-lock.json deploy_package/
+          
+      - uses: actions/upload-artifact@v4
+        with: { 
+          name: app-bundle, 
+          path: deploy_package 
+        }
+        
+      - uses: actions/download-artifact@v4
+        with: { 
+          name: app-bundle, 
+          path: app-bundle 
+        }
+        
+      - uses: appleboy/scp-action@master
         with:
-          node-version: '22.x'
-
-      - run: npm ci
-      # Build the React app (Important for Staging/Prod)
-      - run: npm run build-react --if-present
-      - run: npm test
-      - run: npm run lint
-
-      # Email on Failure
-      - name: Send mail on failure
-        if: failure()
-        uses: dawidd6/action-send-mail@v3
+          host: ${{ secrets.STAGGING_HOST }}
+          username: ubuntu
+          key: ${{ secrets.STAGGING_KEY }}
+          source: "app-bundle/*"
+          target: "app"
+          strip_components: 1
+          
+      - uses: appleboy/ssh-action@master
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          subject: Staging Build Failed!
-          from: DevOps Bot <${{ secrets.MAIL_USERNAME }}>
-          to: hamzafaraz1821@gmail.com
-          body: The build, test, or linting failed on the Main branch. Please investigate immediately.
-
-  deploy-staging:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to AWS Staging Server
-        uses: appleboy/ssh-action@master
-        with:
-
           host: ${{ secrets.STAGGING_HOST }}
           username: ubuntu
           key: ${{ secrets.STAGGING_KEY }}
           script: |
-            # 1. Load NVM (This automatically sets up the PATH for node/npm/pm2)
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            
-            cd ~
-            
-            # 2. Cleanup Logic
-            if [ -d "app" ] && [ ! -d "app/.git" ]; then
-              rm -rf app
-            fi
-            
-            if [ ! -d "app" ]; then
-              git clone https://${{ secrets.GH_PAT }}@github.com/hash-walker/devops.git app
-            fi
-            
             cd app
-            
-            # 5. Fetch and Checkout the correct branch
-            git reset --hard
-            git fetch origin $BRANCH
-            git checkout $BRANCH
-            git pull origin $BRANCH
-            
-            # 6. Install Dependencies and Restart App
-            npm install
-            
-            npm run build-react
-            
-            # Start/Restart PM2
-            # We use '||' so if restart fails (first run), it falls back to start
+            npm ci --production
             pm2 restart app || pm2 start index.js --name "app"
-
-      # Email on Success
-      - name: Send mail on success
-        if: success()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          subject: Staging Deployment Successful
-          from: DevOps Bot <${{ secrets.MAIL_USERNAME }}>
-          to: hamzafaraz1821@gmail.com
-          body: |
-            The changes have been merged and deployed to Staging!
-            
-            Access the Staging Environment here:
-            http://${{ secrets.STAGGING_HOST }}:3000
