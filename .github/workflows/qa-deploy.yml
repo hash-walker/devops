@@ -1,8 +1,8 @@
 name: Deploy to QA
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches-ignore: [main]
   workflow_dispatch:
 
 jobs:
