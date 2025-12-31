@@ -19,7 +19,7 @@ jobs:
       - run: |
           npm ci
           npm test
-          npm run build --if-present
+          npm run build-react
           mkdir deploy_package
           cp -r build deploy_package/
           cp index.js carts.js package.json package-lock.json deploy_package/
