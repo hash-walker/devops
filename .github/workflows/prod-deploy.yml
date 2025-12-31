@@ -71,6 +71,9 @@ jobs:
             # Install Node.js LTS if not present
             command -v node || (curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs)
             
+            # Allow Node.js to bind to port 80 without root
+            sudo setcap 'cap_net_bind_service=+ep' $(which node)
+            
             # Install PM2 if not present
             command -v pm2 || sudo npm install -g pm2
             
