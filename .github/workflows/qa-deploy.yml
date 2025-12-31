@@ -51,6 +51,12 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # Install Node.js LTS if not present
+            command -v node || (curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs)
+            
+            # Install PM2 if not present
+            command -v pm2 || sudo npm install -g pm2
+            
             cd app
             npm ci --production
             pm2 restart app || pm2 start index.js --name app
