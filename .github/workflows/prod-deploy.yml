@@ -66,6 +66,7 @@ jobs:
           host: ${{ secrets.STAGGING_HOST }}
           username: ubuntu
           key: ${{ secrets.STAGGING_KEY }}
+          command_timeout: 10m
           script: |
             # Install Node.js LTS if not present
             command -v node || (curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs)
@@ -74,7 +75,7 @@ jobs:
             command -v pm2 || sudo npm install -g pm2
             
             cd app
-            npm ci --production
+            npm install --omit=dev
             pm2 restart app || pm2 start index.js --name app
 
       # Email on Success
